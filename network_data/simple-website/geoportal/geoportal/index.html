@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Geomática</title>
+		<meta charset="utf-8">
+		<link rel="icon" href="images/favicon.png">
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<link rel="stylesheet" href="plugins/leaflet.css">
+		<script type="text/javascript" src="plugins/leaflet.js"></script>
+
+		<script type="text/javascript" src="plugins/leaflet.markercluster.js"></script>
+		<link rel="stylesheet" href="plugins/MarkerCluster.css">
+		<link rel="stylesheet" href="plugins/MarkerCluster.Default.css">
+
+		<script type="text/javascript" src="plugins/L.Control.Locate.min.js"></script>
+		<link rel="stylesheet" href="plugins/L.Control.Locate.min.css">
+
+		<script type="text/javascript" src="plugins/Control.MiniMap.min.js"></script>
+		<link rel="stylesheet" href="plugins/Control.MiniMap.min.css">
+
+		<script type="text/javascript" src="plugins/Leaflet.Coordinates-0.1.5.min.js"></script>
+		<link rel="stylesheet" href="plugins/Leaflet.Coordinates-0.1.5.css">
+
+		<script type="text/javascript" src="plugins/Control.Geocoder.js"></script>
+		<link rel="stylesheet" href="plugins/Control.Geocoder.css">
+
+		<script type="text/javascript" src="plugins/leaflet-search.min.js"></script>
+		<link rel="stylesheet" href="plugins/leaflet-search.min.css">
+
+		<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+		<script src="https://unpkg.com/leaflet-sidebar-v2/js/leaflet-sidebar.min.js"></script>
+		<link rel="stylesheet" href="https://unpkg.com/leaflet-sidebar-v2/css/leaflet-sidebar.min.css"/>
+
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
+	
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-ajax/2.1.0/leaflet.ajax.min.js"></script>
+
+		<script src="plugins/leaflet.legend.js"></script>
+		<link rel="stylesheet" href="plugins/leaflet.legend.css"/>
+
+
+		<link rel="stylesheet" href="css/styles.css">
+	</head>
+
+	<body>
+		<header>
+			<img src="images/logo.png" id="logo">
+			
+
+			<h1>Geoportal Centro de Altos Estudios en Geomática</h1>
+		</header>
+
+		<div id="map"></div>
+
+
+
+
+
+
+		<!--------- INICIO DEL SIDEBAR -------->
+
+		<div id="sidebar" class="leaflet-sidebar collapsed">
+
+			<div class="leaflet-sidebar-tabs">
+				<ul role="tablist">
+
+					<!-- Pestañas del sidebar-->
+					<li><a href="#home"    role="tab"><i class="fa-solid fa-house-user"></i></a></li>
+					<li><a href="#heatmap" role="tab"><i class="fa-brands fa-first-order-alt"></i></a></li>
+					<li><a href="#route" role="tab"><i class="fa-solid fa-route"></i></a></li>
+					<li><a href="#chart" role="tab"><i class="fa-solid fa-chart-simple"></i></a></li>
+		
+				</ul>
+				
+			</div>
+
+
+			<div class="leaflet-sidebar-content">
+
+				<!-- Contenido Home-->
+				<div class="leaflet-sidebar-pane" id="home">
+					<h1 class="leaflet-sidebar-header">Inicio</h1><br>    
+					<p>Bienvenidos al Geoportal de CAEG.</p>
+				</div>
+
+				<!-- Contenido HeatMap-->
+				<div class="leaflet-sidebar-pane" id="heatmap">
+					<h1 class="leaflet-sidebar-header">Mapa de Calor</h1><br>
+					<p>Mapa de Calor de los Pasivos Ambientales Minero.</p>
+
+					<div class="d-grid gap-2">
+						<button id="activarHeatmap" class="btn btn-primary" type="button">Activar Mapa de Calor</button>
+						<button id="desactivarHeatmap" class="btn btn-danger" type="button">Desactivar Mapa de Calor</button>
+					</div>
+
+				</div>
+
+			</div>
+
+		</div>
+
+		<!--------- FIN DEL SIDEBAR ----------->
+
+
+
+
+
+
+
+
+
+
+		<script type="text/javascript" src="layers/geojson/restos_arqueologicos.js"></script>
+		<script type="text/javascript" src="layers/geojson/pasivos_ambientales_mineros.js"></script>
+		<script type="text/javascript" src="layers/geojson/red_hidrica.js"></script>
+		<script type="text/javascript" src="layers/geojson/departamentos.js"></script>
+
+		<script type="text/javascript" src="js/icons.js"></script>
+		<script type="text/javascript" src="js/symbologies.js"></script>
+		<script type="text/javascript" src="js/popups.js"></script>
+		<script type="text/javascript" src="js/tooltip.js"></script>
+
+		<script type="text/javascript" src="js/maps.js"></script>
+
+	</body>
+</html>

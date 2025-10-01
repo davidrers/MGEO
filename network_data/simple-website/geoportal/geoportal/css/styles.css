@@ -1,0 +1,59 @@
+body, html{
+	margin: 0;
+	padding: 0;
+	height: 100%;
+}
+
+header{
+	background-color: #0074d9;
+	display: flex;
+	align-items: center;
+	padding: 10px;
+}
+
+
+#logo{
+	height: 50px;
+	margin-right: 20px;
+	display: flex;
+	align-items: center;
+}
+
+header h1{
+	color: white;
+	text-align: center;
+	flex-grow: 1;
+}
+
+#map{
+	height: calc(100% - 100px);
+	width: 100%;
+}
+
+.popup-img-dpto{
+	width : 100%;
+	height: auto;	
+}
+
+.tooltip-dpto{
+	background-color: rgba(255, 255, 255, 0.8);
+}
+
+.leaflet-legend-title{
+						text-align: center;
+						font-weight: bold;
+						font-size: 18px;
+}
+
+
+@media(max-width: 768px){
+	header{
+		flex-direction: column;
+		text-align: center;
+	}
+
+	#logo{
+		margin-right: 0;
+		margin-top: 10px;
+	}
+}
