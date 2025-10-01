@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>A Simple Website</title>
+    <!-- styles -->
+  <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Open+Sans|Baumans' type='text/css'>
+  <link rel="stylesheet" href="styles/main.css" type="text/css" media="screen" />
+    <link rel="stylesheet" href="styles/viewer.css" type="text/css" media="screen" />
+</head>
+
+<body>
+<div class="container header">
+  <header>
+    <h1>A Simple Website</h1>
+    <p>Using HTML5 and CSS3</p>
+    <nav>
+      <ul>
+        <li><a href="./index.html">Home</a></li>
+        <li class="active"><a href="./data-viewer.html">Data Viewer</a></li>
+        <li><a href="">Services</a></li>
+      </ul>
+    </nav>
+  </header>
+</div>
+
+<section id="spacer">
+  <!-- Info Bar -->
+  <p>Visualizations using OpenLayers, MapServer and Python...</p>
+</section>
+<!-- Chart Section -->
+<section class="one-column">
+  <article id="bar_chart">
+    <h2>Bar Chart</h2>
+    <div id="chart_container">
+        <img id="population_chart" src="images/barchart.svg" alt="barchart">
+    </div>
+  </article>
+  <br class="clear"/>
+</section>
+
+<!-- Map Section -->
+<section class="one-column">
+  <article id="web_map">
+    <h2>Web Map</h2>
+    <div id="map_container"></div>
+      <img id="population_map" src="images/map.png" alt="map">
+  </article> <!-- web_map -->
+  <br class="clear"/>
+</section>
+
+<section id="featured_content">
+  <article>
+    <a href="">
+      
+      <img src="images/dataviewerlogo.png" alt="data viewer"/>
+      <h3>Data Viewer</h3>
+      <p>This will link to a page of data viewers.</p>
+    </a>
+  </article>
+
+  <article>
+    <a href="">
+      <img src="images/serviceslogo.png" alt="services"/>
+      <h3>Services</h3>
+      <p>This will link to a page of services.</p>
+    </a>
+  </article>
+
+  <br class="clear"/>
+</section>
+
+<footer>
+  <!-- Footer content -->
+  <section class="wrapper">
+    <article class="column">
+      <h4>About Me</h4>
+      Some information about the author...
+    </article>
+    <article class="column midlist">
+      <h4>Email</h4>
+      <a href="mailto:myemail@student.utwente.nl">myemail@student.utwente.nl</a>
+    </article>
+    <article class="column rightlist">
+      <h4>Socials</h4><a href="">A link to my socials.</a>
+    </article>
+  </section>
+  <!-- Copyright notice -->
+  <section id="copyright">
+    <div class="wrapper">
+      &copy; Copyright 2024 by The Author
+  </section> <!-- copyright -->
+</footer>
+
+</body>
+
+</html>

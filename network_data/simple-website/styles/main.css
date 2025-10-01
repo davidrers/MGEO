@@ -1,0 +1,167 @@
+/*----------------------------------------------------------------
+  Name:        main.css
+  Date:        January 2024
+  Description: [simplified] styles for the Web Programming exercise
+  Version:     3.0
+----------------------------------------------------------------*/
+
+/* ------ */
+/* Global */
+/* ------ */
+body {
+  font-family:'Open Sans', sans-serif;
+  border-top:5px solid #4A2E75;
+  background:#ffffff;
+  color:#333333;
+}
+
+p {
+  margin:5px 0;
+  line-height:25px;
+}
+
+a {
+  text-decoration:none;
+  color:inherit;
+  transition:color .5s ease;
+}
+
+a:hover {
+  color:#9164d6;
+}
+
+strong {
+  font-weight:bold;
+}
+
+hr {
+  background-color:#D6D0C1;
+  border:0;
+  height:1px;
+  margin:20px 0;
+}
+
+.clear {
+  clear:both;
+}
+
+/*--------*/
+/* Header */
+/*--------*/
+.container {
+  width:100%;
+  padding:1px;
+}
+
+.container.header {
+  background:rgba(241,235,250,0.2);
+  height:auto;
+}
+
+header {
+  position:relative;
+  width:auto;
+  max-width:900px;
+  margin:0 auto 20px auto;
+}
+
+header h1 {
+  margin:35px 0 0 0;
+  font-size:55px;
+  color:#51209E;
+  font-family:'Baumans';
+}
+
+header p {
+  font-size:16px;
+  color:#4A463B;
+  margin-left:132px;
+}
+
+nav {
+  position:absolute;
+  right:0;
+  bottom:0;
+}
+
+nav ul {
+  list-style:none;
+}
+
+nav ul li {
+  display:block;
+  float:left;
+  padding:3px 15px;
+}
+
+nav ul li a {
+  text-transform:uppercase;
+  transition:all .25s ease;
+}
+
+nav ul li.active {
+  background:#f1edf8;
+}
+
+nav ul li.active a{
+  color:#9164d6;
+}
+
+/*--------*/
+/* Spacer */
+/*--------*/
+#spacer {
+  width:auto;
+  height:50px;
+  background-color:#4A2E75;
+  position:relative;
+  color:#fff;
+  font-size:18px;
+}
+
+#spacer p {
+  margin-top:22px;
+  width:auto;
+  position:absolute;
+  left:50%;
+  margin-left:-450px;
+}
+
+/*----------*/
+/* Features */
+/*----------*/
+#featured_content {
+  width:auto;
+  max-width:900px;
+  margin:0 auto;
+  padding:50px 0 45px 0;
+  text-align: center;
+}
+
+#featured_content article {
+  display: inline-flex;
+  width:350px;
+  font-size:14px;
+  margin: 0 10px;
+  position:relative;
+}
+
+#featured_content article p {
+  line-height:25px;
+}
+
+#featured_content article h3 {
+  font-size:20px;
+  padding-top: 140px;
+  margin-bottom:10px;
+}
+
+#featured_content article img {
+  position:absolute;
+  top:20px;
+  left:85px;
+}
+
+#featured_content article a:hover {
+  color:#9164d6;
+}

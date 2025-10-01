@@ -1,0 +1,32 @@
+/*----------------------------------------------------------------
+  Name:        viewer.css
+  Date:        January 2024
+  Description: [simplified] styles for the Web Programming exercise
+               (data viewer page)
+  Version:     3.0
+----------------------------------------------------------------*/
+
+/*-------------*/
+/* Viewer Page */
+/*-------------*/
+.one-column {
+  width:auto;
+  max-width:1200px;
+  clear:both;
+  margin:0 auto;
+}
+
+.one-column article {
+  font-size:14px;
+}
+
+#web_map, #bar_chart {
+  font-size:14px;
+  line-height:25px;
+  width:100%;
+}
+
+#web_map h2, #bar_chart h2 {
+  font-size:20px;
+  padding:20px 0 10px;
+}
