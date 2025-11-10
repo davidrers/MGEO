@@ -1,0 +1,372 @@
+---
+title: ""
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  html_document:
+    number_sections: true
+  word_document:
+    number_sections: true
+link-citations: false
+header-includes:
+  - |
+    \AtBeginDocument{
+      \begin{titlepage}
+      \centering
+      \Large\textbf{FACULTY OF GEO-INFORMATION SCIENCE AND EARTH OBSERVATION}\\[4pt]
+      \Large\textbf{UNIVERSITY OF TWENTE, ENSCHEDE, THE NETHERLANDS}\\[24pt]
+
+      {\huge \textbf{Course assignment - Part I - Geostatistics}}\par\vspace{28pt}
+
+      \large
+      \textbf{Student Name:} David Alfonso Reyes\\
+      \textbf{Student ID:} 35985357\\
+      \textbf{Course:} Fundamentals of Spatial Data Engineering\\
+      \textbf{Month, Year:} November, 2025
+
+      \vfill
+      \end{titlepage}
+      \clearpage
+    }
+---
+
+\newpage
+
+<!-- The auto-generated TOC will appear here due to YAML options above. -->
+
+# Import Packages and load data. {#packages}
+
+```{r}
+# Install once if needed:
+# install.packages(c("sf","raster","sp","spdep","gstat","gridExtra","cowplot"))
+
+library(sf)
+library(raster)
+library(sp)
+library(spdep)
+library(gstat)
+library(gridExtra)
+library(cowplot)
+```
+
+```{r}
+setwd("C:/Users/darey/OneDrive/Documents/MGEO/MGEO/FromLinearRegressionToGeostatisticalRegression/Data")
+
+# Data per tutorial
+rain.DF <- read.table("sic_obs.dat", sep = ",", header = TRUE)
+Boundary.sf <- st_read("Swiss_Bound.shp")
+Boundary.sp <- as(Boundary.sf, "Spatial")
+DEM  <- raster("DEM.grd")
+NDVI <- raster("NDVI.grd")
+
+rain.SpDF <- rain.DF
+coordinates(rain.SpDF) <- c("x_coor","y_coor")
+
+# Independent vars from rasters at station locations
+x1 <- extract(DEM,  rain.SpDF, df = TRUE)[,2]  # Elevation
+x2 <- extract(NDVI, rain.SpDF, df = TRUE)[,2]  # NDVI
+y  <- rain.SpDF@data$rain_mm                    # Rainfall (response)
+
+# Design matrix (intercept, DEM, NDVI)
+X <- cbind(1, x1, x2)
+
+# Store back into attributes for convenience
+rain.SpDF@data$y  <- y
+rain.SpDF@data$x1 <- x1
+rain.SpDF@data$x2 <- x2
+```
+
+# Task 1 — Compare simple linear models: y \~ x1 vs y \~ x2
+
+Task 1: Fit two separate linear regression models with either elevation or NDVI. Compare the two models with the appropriate metric and draw conclusions on which is the best.
+
+```{r}
+
+#Get simple linear model for elevation.
+LM_x1 <- lm(y ~ x1)
+summary(LM_x1)
+```
+
+```{r}
+
+#Get simple linear model for NDVI.
+LM_x2 <- lm(y ~ x2)
+summary(LM_x2)
+```
+
+```{r}
+
+# Get Metrics
+rmse <- function(m) sqrt(mean(residuals(m)^2))
+
+# Compute metrics for both simple linear regressions
+data.frame(
+  Model   = c("y ~ x1 (DEM)", "y ~ x2 (NDVI)"),
+  SSE     = c(sum(residuals(LM_x1)^2), sum(residuals(LM_x2)^2)),
+  MSE     = c(mean(residuals(LM_x1)^2), mean(residuals(LM_x2)^2)),
+  RMSE    = c(rmse(LM_x1), rmse(LM_x2)),
+  R2      = c(summary(LM_x1)$r.squared, summary(LM_x2)$r.squared),
+  Adj_R2  = c(summary(LM_x1)$adj.r.squared, summary(LM_x2)$adj.r.squared)
+)
+```
+
+## Discussion.
+
+Two simple linear regression models were fitted to evaluate how well each independent variable explains the variation in rainfall.
+
+#### Model 1: `y ~ x1 (DEM)`
+
+The regression equation is:
+
+$$
+\text{Rainfall} = 899.83 - 0.8289 \times \text{Elevation}
+$$
+
+The coefficient for elevation is negative, indicating that rainfall decreases by approximately **0.83 mm for every 1-meter increase in elevation**.\
+This negative relationship is statistically significant (*p* = 2.93e-10), showing that elevation does influence rainfall, but the relationship is inverse.
+
+-   **R² = 0.3345**, meaning elevation explains about **33%** of the rainfall variability.\
+-   **Adjusted R² = 0.3278**\
+-   **RMSE = 94.71 mm**, which represents the average prediction error.
+
+#### Model 2: `y ~ x2 (NDVI)`
+
+The regression equation is:
+
+$$
+\text{Rainfall} = 28.77 + 513.05 \times \text{NDVI}
+$$
+
+The slope is positive and highly significant (*p* \< 2e-16), meaning rainfall increases with vegetation density.\
+Areas with higher NDVI values (greener vegetation) tend to have higher rainfall.
+
+-   **R² = 0.6576**, indicating that NDVI alone explains about **66%** of the rainfall variability.\
+-   **Adjusted R² = 0.6541**\
+-   **RMSE = 67.93 mm**, much smaller than the elevation model’s RMSE.
+
+#### Model comparison
+
+| Metric | `y ~ x1 (DEM)` | `y ~ x2 (NDVI)` | Interpretation |
+|:-----------------|:-----------------|:-----------------|:-----------------|
+| **SSE** | 896,920.4 | 461,439.5 | NDVI model has smaller total squared error |
+| **MSE** | 8,969.2 | 4,614.4 | NDVI model has lower average error variance |
+| **RMSE** | 94.71 | 67.93 | NDVI predictions are more accurate |
+| **R²** | 0.3345 | 0.6576 | NDVI explains nearly twice as much variance |
+| **Adjusted R²** | 0.3278 | 0.6541 | NDVI still stronger after adjustment |
+
+#### Interpretation
+
+The NDVI model performs substantially better in all metrics.\
+Its R² value is about twice that of the elevation model, and the RMSE is roughly **27 mm lower**, meaning the predictions are more accurate.\
+Although elevation is statistically significant, it explains a much smaller portion of rainfall variability.
+
+Between the two simple linear regressions, **NDVI (`y ~ x2`) is the better predictor of rainfall**.\
+It shows a strong positive and statistically significant relationship, higher explanatory power (R² ≈ 0.66), and lower prediction error (RMSE ≈ 68 mm).
+
+# Task 2 — Multiple OLS model (y \~ x1 + x2) and compare to Task 1
+
+Fit a third model with both independent variables (elevation and NDVI) and make a comparison with the first two models. Which of the models is best (using the appropriate metric)?
+
+```{r}
+
+# Fit model and inspect with both predictors
+LM_both <- lm(y ~ x1 + x2)
+summary(LM_both)
+```
+
+```{r}
+# Metrics (same style as Task 1)
+rmse <- function(m) sqrt(mean(residuals(m)^2))
+
+# Single-row metrics for the multiple model
+ data.frame(
+    Model   = c("y ~ x1 (DEM)", "y ~ x2 (NDVI)", "y ~ x1 + x2"),
+    SSE     = c(sum(residuals(LM_x1)^2),
+                sum(residuals(LM_x2)^2),
+                sum(residuals(LM_both)^2)),
+    MSE     = c(mean(residuals(LM_x1)^2),
+                mean(residuals(LM_x2)^2),
+                mean(residuals(LM_both)^2)),
+    RMSE    = c(rmse(LM_x1), rmse(LM_x2), rmse(LM_both)),
+    R2      = c(summary(LM_x1)$r.squared,
+                summary(LM_x2)$r.squared,
+                summary(LM_both)$r.squared),
+    Adj_R2  = c(summary(LM_x1)$adj.r.squared,
+                summary(LM_x2)$adj.r.squared,
+                summary(LM_both)$adj.r.squared)
+  )
+
+```
+
+## Discussion.
+
+A multiple linear regression model was fitted using both elevation (x1) and NDVI (x2) as predictors of rainfall. The model equation is:
+
+$$
+\text{Rainfall} = 291.19 - 0.2795 \times \text{Elevation} + 445.95 \times \text{NDVI}
+$$
+
+Both predictors are statistically significant (**p** \< 0.01).\
+The negative coefficient for elevation indicates that rainfall decreases slightly with higher altitude, while the positive coefficient for NDVI shows that rainfall increases with vegetation density.\
+The intercept of approximately 291.19 mm represents the expected rainfall when both elevation and NDVI are near zero.
+
+#### Model performance
+
+-   **R² = 0.6844**, meaning the combined model explains about **68% of the variability in rainfall**, a clear improvement compared to the single-variable models.\
+-   **Adjusted R² = 0.6779**, confirming the model remains strong even after adjusting for the additional variable.\
+-   **RMSE = 65.22 mm**, which is smaller than both simple regression models (94.71 mm for DEM and 67.93 mm for NDVI).\
+-   **F-statistic = 105.2**, with a very low p-value (\< 2.2e-16), indicating the model as a whole is highly significant.
+
+| Model              |       SSE |     MSE |  RMSE |     R² | Adjusted R² |
+|:-------------------|----------:|--------:|------:|-------:|------------:|
+| **y \~ x1 (DEM)**  | 896,920.4 | 8,969.2 | 94.71 | 0.3345 |      0.3278 |
+| **y \~ x2 (NDVI)** | 461,439.5 | 4,614.4 | 67.93 | 0.6576 |      0.6541 |
+| **y \~ x1 + x2**   | 425,352.3 | 4,253.5 | 65.22 | 0.6844 |      0.6779 |
+
+#### Interpretation
+
+Including both elevation and NDVI improves the model’s predictive power compared to using either variable on its own. NDVI is still the strongest predictor, but elevation adds useful extra information that helps explain some of the remaining variation in rainfall.
+
+This is reflected in the drop in RMSE (from 67.93 mm to 65.22 mm) and the increase in R² (from 0.66 to 0.68), showing that elevation contributes complementary insight even if its individual effect is smaller.
+
+Overall, the multiple regression model (y \~ x1 + x2) gives the best fit among the three models tested. Both predictors are significant, and their combination yields the lowest prediction error and the highest explanatory power. For this dataset, the multiple regression model is therefore the preferred approach, as it captures both the influence of vegetation and the moderating role of elevation on rainfall patterns.
+
+# Task 3 — Compare RMSE of OLS (Task 2) vs Geostatistical Regression (GLS)
+
+Using the RMSE of the linear regression model in Task 2 and that of a geostatistical regression model, which of the two models has a better predictive power?
+
+```{r}
+
+# 1) Start from OLS residuals and fit a variogram
+e_ols   <- residuals(LM_both)
+vgm.Emp.e <- variogram(e_ols ~ 1, locations = rain.SpDF)
+vgmSph.e  <- fit.variogram(vgm.Emp.e, model = vgm(psill = 8000, model = "Sph", range = 60000, nugget = 500))
+
+# 2) Build initial covariance Σ from residual variogram and do first GLS
+DMat       <- spDists(rain.SpDF)
+Sigma_ols1 <- variogramLine(vgmSph.e, dist_vector = DMat, covariance = TRUE)
+Beta_gls1  <- solve(t(X) %*% solve(Sigma_ols1) %*% X) %*% (t(X) %*% solve(Sigma_ols1) %*% y)
+e_gls1     <- as.vector(y - (X %*% Beta_gls1))
+
+# 3) Iterate: re-fit variogram on GLS residuals, rebuild Σ, update coefficients
+K_iter <- 100
+B.gls.ite <- matrix(NA_real_, nrow = K_iter, ncol = ncol(X))
+for (i in 1:K_iter) {
+  v_emp <- variogram(e_gls1 ~ 1, locations = rain.SpDF, covariogram = FALSE)
+  v_fit <- fit.variogram(v_emp, model = vgm(8000, "Sph", 60000, nugget = 500))
+  Sigma <- variogramLine(v_fit, dist_vector = DMat, covariance = TRUE)
+  B.gls.ite[i, ] <- solve(t(X) %*% solve(Sigma) %*% X) %*% (t(X) %*% solve(Sigma) %*% y)
+  e_gls1 <- as.vector(y - (X %*% B.gls.ite[i, ]))
+}
+
+# 4) Final GLS coefficients and residuals
+B.gls <- B.gls.ite[K_iter, ]
+e.gls <- as.vector(y - (X %*% B.gls))
+
+# 5) RMSE (using residual degrees of freedom)
+n <- length(y); k <- 2
+SSE_ols <- t(e_ols) %*% e_ols
+MSE_ols <- SSE_ols / (n - (k + 1))
+RMSE_ols <- sqrt(MSE_ols)
+
+SSE_gls <- t(e.gls) %*% e.gls
+MSE_gls <- SSE_gls / (n - (k + 1))
+RMSE_gls <- sqrt(MSE_gls)
+
+data.frame(
+  Model = c("OLS (y ~ x1 + x2)", "GLS (y ~ x1 + x2)"),
+  RMSE  = c(RMSE_ols, RMSE_gls)
+)
+```
+
+## Discussion - Comparison between OLS and GLS Models
+
+Both the Ordinary Least Squares (OLS) and Generalized Least Squares (GLS) models were fitted using elevation (x1) and NDVI (x2) to predict rainfall. The idea behind using GLS is to account for any spatial autocorrelation in the residuals by introducing a spatial covariance structure based on the fitted variogram.
+
+| Model                  |  RMSE |
+|:-----------------------|------:|
+| **OLS (y \~ x1 + x2)** | 66.22 |
+| **GLS (y \~ x1 + x2)** | 67.44 |
+
+#### Interpretation
+
+The OLS model produced a slightly lower RMSE (66.22 mm) than the GLS model (67.44 mm), meaning both approaches give very similar prediction errors, with GLS performing just a bit worse. In theory, GLS should offer more efficient and less biased estimates when the residuals show strong spatial correlation. However, if that spatial autocorrelation is weak—or if the variogram does not fully capture the underlying covariance—then GLS provides little added benefit. In this case, that seems to be what happened, which explains why GLS did not improve the predictions.
+
+#### Conclusion
+
+The GLS model does account for spatial dependence in the data, but in practice it did not lead to a noticeable improvement in predictive accuracy compared to the OLS model. This indicates that the OLS residuals only show weak spatial correlation, so the independence assumption is not strongly violated. Both models perform well, and the small difference in RMSE suggests that, for this dataset, OLS is already sufficient for predicting rainfall without losing meaningful accuracy.
+
+# Task 4 — CV comparison: Ordinary Kriging (OK) vs Regression Kriging (RK)
+
+Using leave-one-out cross-validation, compare the predictive power of ordinary kriging and regression kriging. Use the elevation and NDVI as your independent variables. Which of the two models, ordinary kriging and regression kriging, explains a higher proportion of the variance? Is it worth fitting regression kriging? Explain your answer.
+
+**4.1) Fit a variogram model for rainfall.**
+
+```{r}
+#### 4) VARIOGRAM FOR RAINFALL (used by OK & RK) ####
+vgm.Emp.y <- variogram(y ~ 1, locations = rain.SpDF)
+vgmExp.y  <- fit.variogram(vgm.Emp.y, model = vgm(psill = 15000, model = "Exp",
+                                                  range = 60000, nugget = 500))
+# Inspect:
+plot(vgm.Emp.y, vgmExp.y, main="Empirical vs Exponential variogram (Rainfall)")
+
+```
+
+**4.2) Leave-one-out CV: OK vs RK**\
+
+OK uses a constant mean; RK uses `y ~ x1 + x2` for the mean structure, with the same variogram.
+
+```{r}
+
+#### 4.2) CROSS-VALIDATION ####
+# Ordinary Kriging CV
+OK.cv <- krige.cv(y ~ 1, locations = rain.SpDF, model = vgmExp.y)
+
+# Regression Kriging CV (mean uses covariates)
+RK.cv <- krige.cv(y ~ x1 + x2, locations = rain.SpDF, model = vgmExp.y)
+
+# Metrics function
+cv_metrics <- function(cv_obj, y_obs = rain.SpDF$y) {
+  res <- cv_obj$residual
+  ME   <- mean(res)                             # mean error (bias)
+  MSE  <- mean(res^2)
+  RMSE <- sqrt(MSE)
+  R2   <- 1 - var(res) / var(y_obs)            # proportion of explained variance
+  data.frame(ME=ME, MSE=MSE, RMSE=RMSE, R2=R2)
+}
+
+OK_metrics <- cv_metrics(OK.cv)
+RK_metrics <- cv_metrics(RK.cv)
+
+rbind(
+  cbind(Model="Ordinary Kriging", OK_metrics),
+  cbind(Model="Regression Kriging", RK_metrics)
+)
+```
+
+## Discussion: Comparison between Ordinary Kriging and Regression Kriging
+
+Both **Ordinary Kriging (OK)** and **Regression Kriging (RK)** were applied to predict rainfall values across the study area using the fitted exponential variogram model.\
+OK relies purely on the spatial autocorrelation of the observed data, whereas RK combines a deterministic component (based on DEM and NDVI) with kriging of the residuals to account for remaining spatial structure.
+
+| Model                  |    ME |     MSE |  RMSE |    R² |
+|:-----------------------|------:|--------:|------:|------:|
+| **Ordinary Kriging**   | -2.09 | 4689.44 | 68.47 | 0.652 |
+| **Regression Kriging** | -2.19 | 4799.85 | 69.28 | 0.644 |
+
+#### Interpretation
+
+Both models produced very similar results, with small mean errors (ME close to zero), indicating that the predictions are nearly unbiased.\
+The **RMSE values** show that OK achieved slightly lower prediction errors (68.47 mm) compared to RK (69.28 mm), while the **R² values** are also very close (0.65 vs 0.64).\
+This means that both approaches explain about two-thirds of the total variance in rainfall.
+
+Although regression kriging is generally expected to outperform ordinary kriging by incorporating additional explanatory variables (elevation and NDVI), the improvement depends on how well these covariates explain spatial trends.\
+In this dataset, the relationship between rainfall and the predictors was already captured by the spatial dependence itself, resulting in only marginal differences between the two techniques, hence its not worth fitting regression Kriging.
+
+#### Conclusion
+
+The results show that both OK and RK provide accurate rainfall predictions with minimal bias and comparable performance.\
+Ordinary Kriging slightly outperformed Regression Kriging in terms of RMSE and R², suggesting that the spatial variability of rainfall in this region can be effectively modeled using spatial autocorrelation alone.

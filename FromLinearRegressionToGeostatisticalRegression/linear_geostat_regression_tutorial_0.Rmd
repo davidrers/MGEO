@@ -17,7 +17,7 @@ output:
 
 ### 0.1 Packages
 
-``` {r}
+```{r}
 # Core spatial + modeling stack
 required_pkgs <- c(
   "sf", "sp", "raster", "gstat", "spdep",
@@ -39,19 +39,14 @@ Place the following files in a working folder and set it below:
 -   `DEM.grd` — elevation raster.
 -   `NDVI.grd` — NDVI raster.
 
-``` {r}
-# Adjust this path to your local folder:
-wd <- "~/Documents/SwissRainfallTutorial"
-if (!dir.exists(wd)) dir.create(wd, recursive = TRUE)
-setwd(wd)
-
-# For reproducibility in small random operations (e.g., sampling grids):
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "C:/Users/darey/OneDrive/Documents/MGEO/MGEO/FromLinearRegressionToGeostatisticalRegression/Data")
 set.seed(42)
 ```
 
 ### 0.3 Load and organize data
 
-``` {r}
+```{r}
 # 1) Read table of station observations
 rain.DF <- read.table("sic_obs.dat", sep = ",", header = TRUE)
 
@@ -88,7 +83,7 @@ rain.SpDF@data$x2 <- x2
 
 We center each variable and compute $\Sigma = Z^\* (Z^\*)' / (n-1)$.
 
-``` {r}
+```{r}
 n       <- length(y)
 y.star  <- y  - mean(y)
 x1.star <- x1 - mean(x1)
@@ -103,7 +98,7 @@ Sigma.Z
 
 ### 1.2 Correlation matrix
 
-``` {r}
+```{r}
 CorMat <- matrix(NA_real_, nrow = 3, ncol = 3)
 for (i in 1:3) for (j in 1:3) {
   CorMat[i,j] <- Sigma.Z[i,j] / sqrt(Sigma.Z[i,i] * Sigma.Z[j,j])
@@ -116,7 +111,7 @@ CorMat
 
 Model: $y_i = \beta_0 + \beta_1 x_{1i} + \beta_2 x_{2i} + \varepsilon_i$.
 
-``` {r}
+```{r}
 # Using lm()
 LM1 <- lm(y ~ x1 + x2)
 summary(LM1)
@@ -132,7 +127,7 @@ The `summary()` reports estimates, standard errors, t‑values, p‑values, resi
 
 We check normality and homoscedasticity with histogram, Q–Q plot, and residuals vs fitted/observed/covariates.
 
-``` {r}
+```{r}
 par(mfrow = c(2,1))
 e <- resid(LM1)
 hist(e, nclass = 20, freq = FALSE, xlab = "Residuals", main = "Histogram of residuals")
@@ -150,7 +145,7 @@ par(mfrow = c(1,1))
 
 ### 1.5 SSE, MSE, RMSE
 
-``` {r}
+```{r}
 SSE <- sum((y - y_cap)^2)
 K   <- 2  # number of predictors (x1, x2)
 MSE <- SSE / (n - (K + 1))
@@ -162,7 +157,7 @@ SSE; MSE; RMSE
 
 Variance–covariance: $\widehat{\Sigma}_\beta = \widehat{\sigma}^2 (X'X)^{-1}$.
 
-``` {r}
+```{r}
 CovBeta  <- as.vector(MSE) * solve(t(X) %*% X)
 CovBeta_lm <- vcov(LM1)           # should match
 round(CovBeta, 6); round(CovBeta_lm, 6)
@@ -170,7 +165,10 @@ round(CovBeta, 6); round(CovBeta_lm, 6)
 # Correlation between coefficients
 p <- ncol(X)
 CrrBeta <- matrix(NA_real_, nrow = p, ncol = p)
-for (i in 1:p) for (j in 1:p) CrrBeta[i,j] <- CovBeta[i,j] / sqrt(CovBeta[i,i] * CovBeta[j,j])
+for (i in 1:p) 
+  for (j in 1:p) 
+    CrrBeta[i,j] <- CovBeta[i,j] / sqrt(CovBeta[i,i] * CovBeta[j,j])
+
 colnames(CrrBeta) <- rownames(CrrBeta) <- colnames(X)
 CrrBeta
 ```
@@ -179,7 +177,7 @@ CrrBeta
 
 We predict across a grid using `predict.lm()` and visualize.
 
-``` {r}
+```{r}
 # Create a regular prediction grid within boundary
 PredGridPts <- spsample(Boundary.sp, n = 200000, type = "regular")
 gridded(PredGridPts) <- TRUE
@@ -207,7 +205,7 @@ spplot(y0.Sp, zcol = "se",  main = "Linear model: prediction standard error")
 
 We explore spatial autocorrelation with empirical semivariograms and fit legal models (Exp/Gau/Sph).
 
-``` {r}
+```{r}
 # Empirical semivariograms
 vgm.cloud.y <- variogram(y ~ 1, locations = rain.SpDF, cloud = TRUE)
 vgm.Emp.y   <- variogram(y ~ 1, locations = rain.SpDF)
@@ -248,13 +246,11 @@ grid.arrange(
 )
 ```
 
-*Reading the models.* Range \~ spatial correlation extent; sill \~ variance contribution; nugget \~ microscale variance/measurement error.
-
-### 2.2 Geostatistical regression (GLS)
+*Reading the models.* Range \~ spatial correlation extent; sill \~ variance contribution; nugget \~ microscale variance/measurement error.2.2 Geostatistical regression (GLS)
 
 We iteratively estimate GLS coefficients using a covariance implied by the residual semivariogram.
 
-``` {r}
+```{r}
 # Distance matrix between observation locations
 DMat <- spDists(rain.SpDF)
 
@@ -295,29 +291,56 @@ B.gls
 
 #### 2.2.1 Standard errors of GLS coefficients
 
-``` {r}
-# GLS residuals and error variance
-e.gls   <- as.numeric(y - (X %*% B.gls))
-SSE.gls <- sum(e.gls^2)
-k <- 2
-MSE.gls <- SSE.gls / (n - (k + 1))
-RMSE.gls <- sqrt(MSE.gls)
-
-# Covariance of GLS coefficients: (X' Σ^{-1} X)^{-1}
-vgm.Emp.gls <- variogram(e.gls ~ 1, locations = rain.SpDF, covariogram = FALSE)
-vgmSph.gls  <- fit.variogram(vgm.Emp.gls, model = vgm(psill = 8000, model = "Sph", range = 60000, nugget = 500))
-Sigma.gls   <- variogramLine(vgmSph.gls, dist_vector = DMat, covariance = TRUE)
-
+```{r}
+### GLS standard errors ####
+### SSE, MSE, and RMSE ###
+#Compute the GLS residuals
+e.gls <- y - (X %*% B.gls)
+# Compute sum of squared error SSE
+SSE.gls <- t(e.gls) %*% e.gls; SSE.gls
+# Compute the mean square errors (MSE)
+k <- 2 ## The number of independent variables
+MSE.gls <- SSE.gls / (n - (k + 1)); MSE.gls
+# Compute the root mean square errors (RMSE)
+RMSE.gls <- sqrt(MSE.gls); RMSE.gls
+# Compute the Variance-covariance matrix of the GLS residuals
+vgm.Emp.gls <- variogram(e.gls ~ 1, locations = rain.SpDF, covariogram = F)
+vgmExp.gls <- fit.variogram(vgm.Emp.gls, model = vgm(8000, "Sph", 60000,
+nugget = 500))
+Sigma.gls <- variogramLine(vgmExp.gls, dist_vector = DMat, covariance = T)
+### compute Variance-covariance matrix of GLS coefficients
 Sigma.Beta.Gls <- solve(t(X) %*% solve(Sigma.gls) %*% X)
-SE.GLS <- sqrt(diag(Sigma.Beta.Gls))
-list(RMSE_gls = RMSE.gls, SE_GLS = SE.GLS, Cov_Beta_GLS = Sigma.Beta.Gls)
+Sigma.Beta.Gls
+### The standard errors of the GLS coefficients ###
+sqrt(diag(Sigma.Beta.Gls))
+```
+
+```{r}
+plot(vgmExp.y, cutoff = 80000)
 ```
 
 ### 2.3 Geostatistical prediction
 
+```{r}
+#### Geostatistical Prediction #####
+
+## Ordinary Kriging
+## Design a prediction grid, 20000 points, within the boundary of the study area
+OK.GridPts <- spsample(Boundary.sp, n = 20000, type = "regular")
+gridded(OK.GridPts) <- T
+
+## Let’s use the exponential model for rainfall: vgmExp.y
+OK.Rain <- krige(y ~ 1, locations = rain.SpDF, newdata = OK.GridPts, model = vgmExp.y)
+
+grid.arrange(
+  spplot(OK.Rain, zcol = "var1.pred", main = "OK Predictions of Rainfall"),
+  spplot(OK.Rain, zcol = "var1.var", main = "OK Prediction Variances of Rainfall")
+)
+```
+
 #### 2.3.1 Ordinary Kriging (OK)
 
-``` {r}
+```{r}
 # Design a sparser prediction grid for demo
 OK.GridPts <- spsample(Boundary.sp, n = 20000, type = "regular")
 gridded(OK.GridPts) <- TRUE
@@ -330,11 +353,12 @@ grid.arrange(
   spplot(OK.Rain, zcol = "var1.var",  main = "OK Prediction Variance"),
   nrow = 1
 )
+
 ```
 
 #### 2.3.2 Regression Kriging (RK)
 
-``` {r}
+```{r}
 # Build newdata with covariates on grid
 RK.GridPts <- spsample(Boundary.sp, n = 20000, type = "regular")
 RK.GridPtsDF <- SpatialPointsDataFrame(
@@ -363,7 +387,7 @@ grid.arrange(
 
 We use leave‑one‑out CV to assess predictive performance and 5‑fold CV as a check.
 
-``` {r}
+```{r}
 # LOOCV
 RK.Rain.CV <- krige.cv(y ~ x1 + x2, locations = rain.SpDF, model = vgmExp.RK)
 
@@ -384,7 +408,7 @@ Below are minimal code stubs you can duplicate into separate sections to answer 
 
 ### Task 1 — Compare simple linear models: y \~ x1 vs y \~ x2
 
-``` {r}
+```{r}
 M1 <- lm(y ~ x1)
 M2 <- lm(y ~ x2)
 
@@ -401,7 +425,7 @@ Explain which predictor performs better and why (use R²/Adj‑R², RMSE, residu
 
 ### Task 2 — Multiple regression: y \~ x1 + x2 vs Task 1 models
 
-``` {r}
+```{r}
 M3 <- LM1  # already fitted as y ~ x1 + x2
 rbind(M1 = met(M1), M2 = met(M2), M3 = met(M3))
 ```
@@ -410,7 +434,7 @@ Discuss whether adding both predictors is justified (e.g., Adj‑R², RMSE, sign
 
 ### Task 3 — Compare OLS vs Geostatistical Regression (GLS)
 
-``` {r}
+```{r}
 RMSE_OLS <- RMSE
 RMSE_GLS <- as.numeric(RMSE.gls)
 c(RMSE_OLS = RMSE_OLS, RMSE_GLS = RMSE_GLS)
@@ -420,7 +444,7 @@ State which has better predictive power and interpret the practical impact.
 
 ### Task 4 — OK vs RK via LOOCV
 
-``` {r}
+```{r}
 OK.cv <- krige.cv(y ~ 1,        locations = rain.SpDF, model = vgmExp.y)
 RK.cv <- krige.cv(y ~ x1 + x2,  locations = rain.SpDF, model = vgmExp.RK)
 

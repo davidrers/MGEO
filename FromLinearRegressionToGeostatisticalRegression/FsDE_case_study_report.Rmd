@@ -1,0 +1,256 @@
+---
+title: "Case Study Report: From Linear Regression to Geostatistical Regression"
+subtitle: "Fundamentals of Spatial Data Engineering (FsDE)"
+author: "Student Name (Student ID)"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  word_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+bibliography: references.bib
+link-citations: true
+---
+
+# 1. Introduction
+
+*Background & problem.* Briefly describe the study area and motivate why modeling rainfall variability matters for geospatial analysis (e.g., interpolation, hydrology, climate). Clearly state the **geographical/geospatial questions** your report answers, such as:
+
+-   *Q1.* How well do elevation (DEM) and NDVI individually explain rainfall variability?
+-   *Q2.* Does a multiple regression (DEM + NDVI) improve explanatory power vs. single-predictor models?
+-   *Q3.* Does accounting for spatial autocorrelation via **GLS** improve predictive error vs **OLS**?
+-   *Q4.* Which geostatistical predictor is better under LOOCV: **Ordinary Kriging (OK)** or **Regression Kriging (RK)**?
+
+*Report outline.* Close with a short paragraph describing the structure: Methods (data, workflow), Results (per question), Discussion, and Conclusions. Cite core references for kriging and geostatistics as needed \cite{cressie1993,hengl2009,pebesma2004}.
+
+# 2. Methodology
+
+## 2.1 Workflow and spatial analysis
+
+Briefly summarize the steps; include (or later paste) a flowchart image showing:
+
+1)  Data ingestion & preprocessing → 2) Covariate extraction (DEM, NDVI) → 3) OLS/Multiple OLS → 4) Variogram fitting (residuals & rainfall) → 5) GLS → 6) LOOCV for OK & RK → 7) Metrics & comparison.
+
+> *Tip:* You can create and export a flowchart figure separately (e.g., draw.io, DiagrammeR) and include it with `knitr::include_graphics()`.
+
+## 2.2 Data Management Plan
+
+Describe the datasets (station rainfall, Swiss boundary, DEM, NDVI): CRS, resolution, units, temporal coverage, licensing/source, preprocessing. Mention file organization and reproducibility practices.
+
+## 2.3 Methods
+
+### 2.3.1 Packages
+
+```{r setup, message=FALSE, warning=FALSE}
+# Install once if needed:
+# install.packages(c("sf","raster","sp","spdep","gstat","gridExtra","cowplot"))
+
+library(sf)
+library(raster)
+library(sp)
+library(spdep)
+library(gstat)
+library(gridExtra)
+library(cowplot)
+
+# For reproducibility in any random ops
+set.seed(42)
+```
+
+### 2.3.2 Load and organize data
+
+```{r data, message=FALSE, warning=FALSE}
+# Adjust to your local path:
+setwd("C:/Users/darey/OneDrive/Documents/MGEO/MGEO/FromLinearRegressionToGeostatisticalRegression/Data")
+
+rain.DF <- read.table("sic_obs.dat", sep = ",", header = TRUE)
+
+Boundary.sf <- st_read("Swiss_Bound.shp")
+Boundary.sp <- as(Boundary.sf, "Spatial")
+
+DEM  <- raster("DEM.grd")
+NDVI <- raster("NDVI.grd")
+
+# Promote table to SpatialPointsDataFrame
+rain.SpDF <- rain.DF
+coordinates(rain.SpDF) <- c("x_coor","y_coor")
+
+# Extract covariates at station locations
+x1 <- extract(DEM,  rain.SpDF, df = TRUE)[,2]  # Elevation
+x2 <- extract(NDVI, rain.SpDF, df = TRUE)[,2]  # NDVI
+y  <- rain.SpDF@data$rain_mm                   # Response
+
+# Design matrix (intercept, DEM, NDVI)
+X <- cbind(1, x1, x2)
+
+# Store back into attributes
+rain.SpDF@data$y  <- y
+rain.SpDF@data$x1 <- x1
+rain.SpDF@data$x2 <- x2
+```
+
+### 2.3.3 Task 1 — Simple OLS models (`y ~ x1` vs `y ~ x2`)
+
+```{r task1-fit}
+LM_x1 <- lm(y ~ x1)
+LM_x2 <- lm(y ~ x2)
+
+rmse <- function(m) sqrt(mean(residuals(m)^2))
+
+ols_simple_metrics <- data.frame(
+  Model   = c("y ~ x1 (DEM)", "y ~ x2 (NDVI)"),
+  SSE     = c(sum(residuals(LM_x1)^2), sum(residuals(LM_x2)^2)),
+  MSE     = c(mean(residuals(LM_x1)^2), mean(residuals(LM_x2)^2)),
+  RMSE    = c(rmse(LM_x1), rmse(LM_x2)),
+  R2      = c(summary(LM_x1)$r.squared, summary(LM_x2)$r.squared),
+  Adj_R2  = c(summary(LM_x1)$adj.r.squared, summary(LM_x2)$adj.r.squared)
+)
+ols_simple_metrics
+```
+
+### 2.3.4 Task 2 — Multiple OLS (`y ~ x1 + x2`) and comparison
+
+```{r task2-fit}
+LM_both <- lm(y ~ x1 + x2)
+
+ols_all_metrics <- data.frame(
+  Model   = c("y ~ x1 (DEM)", "y ~ x2 (NDVI)", "y ~ x1 + x2"),
+  SSE     = c(sum(residuals(LM_x1)^2),
+              sum(residuals(LM_x2)^2),
+              sum(residuals(LM_both)^2)),
+  MSE     = c(mean(residuals(LM_x1)^2),
+              mean(residuals(LM_x2)^2),
+              mean(residuals(LM_both)^2)),
+  RMSE    = c(rmse(LM_x1), rmse(LM_x2), rmse(LM_both)),
+  R2      = c(summary(LM_x1)$r.squared,
+              summary(LM_x2)$r.squared,
+              summary(LM_both)$r.squared),
+  Adj_R2  = c(summary(LM_x1)$adj.r.squared,
+              summary(LM_x2)$adj.r.squared,
+              summary(LM_both)$adj.r.squared)
+)
+ols_all_metrics
+```
+
+### 2.3.5 Task 3 — OLS vs GLS (RMSE comparison)
+
+```{r task3-gls, message=FALSE, warning=FALSE}
+# 1) Empirical variogram of OLS residuals
+e_ols   <- residuals(LM_both)
+vgm.Emp.e <- variogram(e_ols ~ 1, locations = rain.SpDF)
+vgmSph.e  <- fit.variogram(vgm.Emp.e, model = vgm(psill = 8000, model = "Sph", range = 60000, nugget = 500))
+
+# 2) Build covariance Σ from residual variogram and perform GLS
+DMat       <- spDists(rain.SpDF)
+Sigma_ols1 <- variogramLine(vgmSph.e, dist_vector = DMat, covariance = TRUE)
+Beta_gls1  <- solve(t(X) %*% solve(Sigma_ols1) %*% X) %*% (t(X) %*% solve(Sigma_ols1) %*% y)
+e_gls1     <- as.vector(y - (X %*% Beta_gls1))
+
+# 3) Iterate GLS to refine variogram and coefficients
+K_iter <- 50
+B.gls.ite <- matrix(NA_real_, nrow = K_iter, ncol = ncol(X))
+for (i in 1:K_iter) {
+  v_emp <- variogram(e_gls1 ~ 1, locations = rain.SpDF, covariogram = FALSE)
+  v_fit <- fit.variogram(v_emp, model = vgm(8000, "Sph", 60000, nugget = 500))
+  Sigma <- variogramLine(v_fit, dist_vector = DMat, covariance = TRUE)
+  B.gls.ite[i, ] <- solve(t(X) %*% solve(Sigma) %*% X) %*% (t(X) %*% solve(Sigma) %*% y)
+  e_gls1 <- as.vector(y - (X %*% B.gls.ite[i, ]))
+}
+
+# 4) Final GLS residuals
+B.gls <- B.gls.ite[K_iter, ]
+e.gls <- as.vector(y - (X %*% B.gls))
+
+# 5) RMSE with residual df (k = 2 predictors)
+n <- length(y); k <- 2
+SSE_ols <- t(e_ols) %*% e_ols
+MSE_ols <- SSE_ols / (n - (k + 1))
+RMSE_ols <- sqrt(MSE_ols)
+
+SSE_gls <- t(e.gls) %*% e.gls
+MSE_gls <- SSE_gls / (n - (k + 1))
+RMSE_gls <- sqrt(MSE_gls)
+
+gls_cmp <- data.frame(
+  Model = c("OLS (y ~ x1 + x2)", "GLS (y ~ x1 + x2)"),
+  RMSE  = c(RMSE_ols, RMSE_gls)
+)
+gls_cmp
+```
+
+### 2.3.6 Task 4 — LOOCV: Ordinary Kriging vs Regression Kriging
+
+```{r task4-cv, message=FALSE, warning=FALSE}
+# Variogram for rainfall (OK & RK)
+vgm.Emp.y <- variogram(y ~ 1, locations = rain.SpDF)
+vgmExp.y  <- fit.variogram(vgm.Emp.y, model = vgm(psill = 15000, model = "Exp",
+                                                  range = 60000, nugget = 500))
+
+# LOOCV
+OK.cv <- krige.cv(y ~ 1,           locations = rain.SpDF, model = vgmExp.y)
+RK.cv <- krige.cv(y ~ x1 + x2,     locations = rain.SpDF, model = vgmExp.y)
+
+cv_metrics <- function(cv_obj, y_obs = rain.SpDF$y) {
+  res <- cv_obj$residual
+  ME   <- mean(res)
+  MSE  <- mean(res^2)
+  RMSE <- sqrt(MSE)
+  R2   <- 1 - var(res) / var(y_obs)
+  data.frame(ME=ME, MSE=MSE, RMSE=RMSE, R2=R2)
+}
+
+OK_metrics <- cv_metrics(OK.cv)
+RK_metrics <- cv_metrics(RK.cv)
+
+cv_cmp <- rbind(
+  cbind(Model="Ordinary Kriging", OK_metrics),
+  cbind(Model="Regression Kriging", RK_metrics)
+)
+cv_cmp
+```
+
+# 3. Results
+
+## 3.1 Task 1 — Comparing simple linear models
+
+Summarize coefficients, significance, and the metrics table `ols_simple_metrics`. Explain which covariate better explains rainfall and why (e.g., higher R², lower RMSE).
+
+## 3.2 Task 2 — Multiple OLS vs single-predictor models
+
+Discuss `ols_all_metrics`. Note whether adding elevation to NDVI brings meaningful gains and how large they are (ΔRMSE, ΔR²).
+
+## 3.3 Task 3 — OLS vs GLS
+
+Interpret the `gls_cmp` RMSE comparison. When might GLS help, and why might it not here?
+
+## 3.4 Task 4 — LOOCV: OK vs RK
+
+Interpret `cv_cmp` (ME bias, RMSE, and R²). Explain conditions under which RK is expected to outperform OK.
+
+# 4. Discussion
+
+Reflect on validity and limitations: data density, station representativeness, CRS and support/resolution issues, model misspecification, variogram sensitivity, and uncertainty communication. Relate to broader frameworks or SDGs if relevant.
+
+# 5. Conclusions
+
+Provide concise answers to Q1–Q4. State key takeaways (best-performing approach under the given data) and what could improve results (denser data, additional covariates, nonstationary models, etc.).
+
+# References
+
+*Rendered automatically from* `references.bib` *based on in-text citations.*
+
+# Appendix A. Detailed Data Descriptions
+
+Add extended metadata and any additional checks not essential to the main text.
+
+# Appendix B. Additional Figures or Maps
+
+Include A4 (or larger) cartographic outputs following cartographic rules.

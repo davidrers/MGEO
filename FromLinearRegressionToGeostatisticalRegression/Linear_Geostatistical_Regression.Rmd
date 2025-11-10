@@ -1,0 +1,147 @@
+---
+title: "Linear and Geostatistical Regression (Swiss Rainfall)"
+author: "David Reyes"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE)
+```
+
+# Overview
+
+This R Markdown reproduces the **Linear and Geostatistical Regression** workflow based on the Swiss rainfall dataset described in the provided PDF tutorial.
+
+It includes:
+- OLS regression (`y ~ x1 + x2`)
+- Geostatistical regression (GLS)
+- Ordinary Kriging (OK)
+- Regression Kriging (RK)
+- Cross-validation metrics
+
+---
+
+# Load Packages
+
+```{r packages}
+library(sf)
+library(raster)
+library(sp)
+library(spdep)
+library(gridExtra)
+library(cowplot)
+library(gstat)
+```
+
+# Load and Prepare Data
+
+```{r data}
+# Set working directory
+# setwd("~/Documents/Franky/Education/Foundation Course/Tutorial")
+
+rain.DF <- read.table("sic_obs.dat", sep = ",", header = TRUE)
+rain.SpDF <- rain.DF
+coordinates(rain.SpDF) <- c("x_coor","y_coor")
+
+Boundary.sf <- st_read("Swiss_Bound.shp", quiet = TRUE)
+Boundary.sp <- as(Boundary.sf, "Spatial")
+
+DEM  <- raster("DEM.grd")
+NDVI <- raster("NDVI.grd")
+```
+
+# Extract Predictors
+
+```{r predictors}
+x1 <- extract(DEM, rain.SpDF, df = TRUE)[,2]
+x2 <- extract(NDVI, rain.SpDF, df = TRUE)[,2]
+y  <- rain.SpDF@data$rain_mm
+X  <- cbind(1, x1, x2)
+
+rain.SpDF@data$y <- y
+rain.SpDF@data$x1 <- x1
+rain.SpDF@data$x2 <- x2
+```
+
+# Fit OLS Model
+
+```{r ols}
+LM1 <- lm(y ~ x1 + x2)
+summary(LM1)
+
+y_cap <- predict(LM1)
+e <- y - y_cap
+
+SSE <- t(y - y_cap) %*% (y - y_cap)
+K <- 2
+MSE <- SSE / (length(y) - (K + 1))
+RMSE <- sqrt(MSE); RMSE
+```
+
+# Variogram Models and GLS Iterations
+
+```{r gls}
+vgm.Emp.e <- variogram(e ~ 1, locations = rain.SpDF)
+vgmSph.e <- fit.variogram(vgm.Emp.e, model = vgm(8000, "Sph", 60000, nugget = 500))
+
+DMat <- spDists(rain.SpDF)
+Sigma.ols1 <- variogramLine(vgmSph.e, dist_vector = DMat, covariance = TRUE)
+Beta.gls1 <- solve(t(X) %*% solve(Sigma.ols1) %*% X) %*% (t(X) %*% solve(Sigma.ols1) %*% y)
+e.gls1 <- y - (X %*% Beta.gls1)
+
+B.gls.ite <- matrix(nrow = 100, ncol = 3)
+for (i in 1:100) {
+  vgm.Emp.gls1 <- variogram(e.gls1 ~ 1, locations = rain.SpDF)
+  vgmExp.gls1 <- fit.variogram(vgm.Emp.gls1, model = vgm(8000, "Sph", 60000, nugget = 500))
+  Sigma.gls1 <- variogramLine(vgmExp.gls1, dist_vector = DMat, covariance = TRUE)
+  B.gls.ite[i, ] <- solve(t(X) %*% solve(Sigma.gls1) %*% X) %*% (t(X) %*% solve(Sigma.gls1) %*% y)
+  e.gls1 <- y - (X %*% B.gls.ite[i, ])
+}
+
+B.gls <- B.gls.ite[100, ]  # Final GLS coefficients
+e.gls <- y - (X %*% B.gls)
+RMSE.gls <- sqrt(mean(e.gls^2)); RMSE.gls
+```
+
+# Ordinary Kriging and Regression Kriging
+
+```{r kriging}
+vgmExp.y <- fit.variogram(variogram(y ~ 1, locations = rain.SpDF), model = vgm(15000, "Exp", 60000, nugget = 500))
+OK.GridPts <- spsample(Boundary.sp, n = 20000, type = "regular")
+gridded(OK.GridPts) <- TRUE
+
+OK.Rain <- krige(y ~ 1, locations = rain.SpDF, newdata = OK.GridPts, model = vgmExp.y)
+
+RK.GridPtsDF <- SpatialPointsDataFrame(
+  OK.GridPts,
+  data.frame(x1 = extract(DEM, OK.GridPts, df = TRUE)[,2],
+             x2 = extract(NDVI, OK.GridPts, df = TRUE)[,2])
+)
+gridded(RK.GridPtsDF) <- TRUE
+RK.Rain <- krige(y ~ x1 + x2, locations = rain.SpDF, newdata = RK.GridPtsDF, model = vgmExp.y)
+```
+
+# Cross-validation
+
+```{r cv}
+RK.Rain.CV <- krige.cv(y ~ x1 + x2, locations = rain.SpDF, model = vgmExp.y)
+ME  <- mean(RK.Rain.CV$residual)
+MSE <- mean(RK.Rain.CV$residual^2)
+RMSE <- sqrt(MSE)
+R2 <- 1 - var(RK.Rain.CV$residual) / var(rain.SpDF$y)
+data.frame(ME, MSE, RMSE, R2)
+```
+
+# Discussion
+
+- **OLS regression** models the deterministic trend using DEM and NDVI.
+- **Geostatistical regression (GLS)** improves estimation by accounting for spatial correlation in residuals.
+- **Ordinary Kriging** assumes a constant mean across space.
+- **Regression Kriging** combines both the deterministic trend and the stochastic spatial component for improved predictions.
+- Cross-validation metrics (RMSE, R²) are used to evaluate predictive performance.
